@@ -19,9 +19,9 @@ jobs:
       postgres-db:
         image: postgres:15
         env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: testdb
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypass
+          POSTGRES_DB: mydatabase
         ports:
           - 5432:5432
         options: >-
@@ -29,6 +29,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
 
 
     steps:
@@ -45,7 +46,8 @@ jobs:
         run: docker network create ci_network || echo "Network ci_network already exists"
 
       - name: Connect Postgres service to network
-        run: docker network connect ci_network postgres || echo "Postgres already connected"
+        run: docker network connect ci_network postgres-db || echo "Postgres already connected"
+
 
       - name: Run backup script test
         run: |
@@ -54,9 +56,9 @@ jobs:
             --network ci_network \
             -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
-            -e DB_USER=testuser \
-            -e DB_PASSWORD=testpass \
-            -e DB_NAME=testdb \
+            -e DB_USER=myuser \
+            -e DB_PASSWORD=mypass \
+            -e DB_NAME=mydatabase \
             -e BACKUP_DIR=/mnt/backups \
             -e RETENTION_DAYS=7 \
             -e ENCRYPT=false \
