@@ -12,11 +12,11 @@ env:
 
 jobs:
   build-and-test:
-    name: 🔧 Build & Validate Backup
+    name: Build & Validate Backup
     runs-on: ubuntu-latest
 
     services:
-      postgres:
+      postgres-db:
         image: postgres:15
         env:
           POSTGRES_USER: testuser
@@ -29,6 +29,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
 
     steps:
       - name: Checkout repo
