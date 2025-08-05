@@ -1,0 +1,61 @@
+name: BICA Backup CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: bica-backup
+  TAG: test
+
+jobs:
+  build-and-test:
+    name: 🔧 Build & Validate Backup
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: 📥 Checkout repo
+      uses: actions/checkout@v4
+
+    - name: 🐳 Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🛠️ Build backup container
+      run: docker build -t $IMAGE_NAME:$TAG .
+
+    - name: 📦 Run backup script test
+      run: |
+        mkdir -p ./backups
+        docker run --rm \
+          -e DB_HOST=host.docker.internal \
+          -e DB_PORT=5432 \
+          -e DB_USER=testuser \
+          -e DB_PASSWORD=testpass \
+          -e DB_NAME=testdb \
+          -e BACKUP_DIR=/mnt/backups \
+          -e RETENTION_DAYS=1 \
+          -e ENCRYPT=false \
+          -v $(pwd)/backups:/mnt/backups \
+          $IMAGE_NAME:$TAG /backup.sh
+
+    - name: ✅ Check backup created
+      run: |
+        ls -lh ./backups
+        test -f ./backups/*.tar.gz || (echo "❌ Backup não foi criado!" && exit 1)
