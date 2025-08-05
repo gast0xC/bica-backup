@@ -29,8 +29,9 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        #volumes:
-       #   - ./pgdata:/var/lib/postgresql/data
+        # volume removido para evitar problemas de permissão
+        # volumes:
+        #   - ./pgdata:/var/lib/postgresql/data
 
     steps:
       - name: Checkout repo
@@ -42,11 +43,9 @@ jobs:
       - name: Build backup container
         run: docker build -t $IMAGE_NAME:$TAG .
 
-      - name: Prepare pgdata and backups folders
+      - name: Prepare folders
         run: |
-          mkdir -p ./pgdata
           mkdir -p ./backups
-          chmod 777 ./pgdata
           chmod 777 ./backups
 
       - name: Wait for Postgres to be ready on localhost
@@ -59,7 +58,10 @@ jobs:
           echo "Postgres did not become ready in time"
           exit 1
 
-      - name: Run backup script test
+      - name: Test connection to Postgres
+        run: pg_isready -h localhost -p 5432 -U myuser
+
+      - name: Run backup script test (verboso)
         run: |
           docker run --rm \
             -e DB_HOST=localhost \
