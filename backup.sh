@@ -23,8 +23,8 @@ echo "Now is $(date +"%H:%M"), creating backup..."
 #  Clean up at 03:00 
 if [[ "$CURRENT_TIME" == "0300" ]]; then
     echo "[$TIMESTAMP] Clean backups with more than $RETENTION_DAYS days..."
-    find "$BACKUP_DIR" -type f -mtime +$RETENTION_DAYS -exec rm {} \;
-fi                              #mmin test  
+    find "$BACKUP_DIR" -type f -mmin +$RETENTION_DAYS -exec rm {} \;
+fi                              #mmin test  mtime  
 
 # Waiting for postgres
 until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER"; do

@@ -4,7 +4,7 @@ FROM debian:bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set timezone (default: UTC)
-ENV TZ=UTC
+ENV TZ=Europe/Lisbon
     #Europe/Lisbon  UTC
 # Install required packages
 RUN apt-get update && apt-get install -y \
