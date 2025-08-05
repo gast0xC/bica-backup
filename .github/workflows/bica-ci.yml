@@ -51,7 +51,7 @@ jobs:
           mkdir -p ./backups
           docker run --rm \
             --network ci_network \
-            -e DB_HOST=postgres \
+            -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
             -e DB_USER=testuser \
             -e DB_PASSWORD=testpass \
