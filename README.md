@@ -444,5 +444,3 @@ All cron job outputs (`stdout` and `stderr`) are appended to this file.
     -   Foreground mode (`-f`) ensures the container keeps running and supervises the cron jobs.
 ---
 
-
-# Teste CI/CD
