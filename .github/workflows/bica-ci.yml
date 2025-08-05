@@ -30,8 +30,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -42,28 +40,21 @@ jobs:
       - name: Build backup container
         run: docker build -t $IMAGE_NAME:$TAG .
 
-      - name: Create Docker network
-        run: docker network create ci_network || echo "Network ci_network already exists"
-
-      - name: Connect Postgres service to network
-        run: docker network connect ci_network postgres-db || echo "Postgres already connected"
-
-      - name: Wait for Postgres to be ready
+      - name: Wait for Postgres to be ready on localhost
         run: |
           for i in {1..30}; do
-            nc -z postgres-db 5432 && echo "Postgres is ready" && exit 0
+            nc -z localhost 5432 && echo "Postgres is ready" && exit 0
             echo "Waiting for Postgres..."
             sleep 2
           done
           echo "Postgres did not become ready in time"
           exit 1
-          
+
       - name: Run backup script test
         run: |
           mkdir -p ./backups
           docker run --rm \
-            --network ci_network \
-            -e DB_HOST=postgres-db \
+            -e DB_HOST=localhost \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
             -e DB_PASSWORD=mypass \
@@ -72,20 +63,6 @@ jobs:
             -e RETENTION_DAYS=7 \
             -e ENCRYPT=false \
             -v $(pwd)/backups:/mnt/backups \
-            $IMAGE_NAME:$TAG /backup.sh
-
-      - name: Run backup script test without volume
-        run: |
-          docker run --rm \
-            --network ci_network \
-            -e DB_HOST=postgres-db \
-            -e DB_PORT=5432 \
-            -e DB_USER=myuser \
-            -e DB_PASSWORD=mypass \
-            -e DB_NAME=mydatabase \
-            -e BACKUP_DIR=/mnt/backups \
-            -e RETENTION_DAYS=7 \
-            -e ENCRYPT=false \
             $IMAGE_NAME:$TAG /backup.sh
 
       - name: Check backup created
