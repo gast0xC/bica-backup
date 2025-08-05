@@ -95,4 +95,3 @@ jobs:
         run: |
           docker tag $IMAGE_NAME:$TAG ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
-          
