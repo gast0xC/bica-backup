@@ -1,0 +1,41 @@
+services:
+  postgres-db:                    # PostgreSQL Service
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: myuser        # Database username
+      POSTGRES_PASSWORD: mypass    # Database password
+      POSTGRES_DB: mydatabase      # Database name
+    ports:
+      - "5432:5432"                # Expose DB to host
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    networks:
+      - bica-net                   # Use the same network for both services
+
+  bica-backup:                     # Backup Service
+    build: .                       # Build image from local Dockerfile
+    image: bica-backup:latest
+    container_name: bica-backup
+    restart: unless-stopped        # Auto-restart after reboot
+    environment:
+      DB_HOST: postgres-db         # Connects to the postgres-db service
+      DB_PORT: 5432
+      DB_USER: myuser              # DB username
+      DB_PASSWORD: mypass          # DB password
+      DB_NAME: mydatabase          # Target database
+      BACKUP_DIR: /mnt/backups     # Backup folder inside the container
+      RETENTION_DAYS: 7            # Number of days to retain backups
+      ENCRYPT: "true"             # Set to "true" to enable encryption
+      ENCRYPT_PASS: "MySecretKey"  # encryp pw
+
+    volumes:
+      - ./backups:/mnt/backups     # Map host folder for persistent backups
+    depends_on:
+      - postgres-db                # Start database before backup service
+    networks:
+      - bica-net
+
+networks:
+  bica-net:
+    driver: bridge                 # Simple Docker bridge network

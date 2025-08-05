@@ -1,0 +1,6 @@
+# Production
+0 3  * * * . /etc/environment; /backup.sh >> /var/log/backup.log 2>&1
+0 14 * * * . /etc/environment; /backup.sh >> /var/log/backup.log 2>&1
+
+# Test every 1 minute
+#* * * * * . /etc/environment; /backup.sh >> /var/log/backup.log 2>&1
