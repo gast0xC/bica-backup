@@ -29,8 +29,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        volumes:
-          - ./pgdata:/var/lib/postgresql/data
+        #volumes:
+       #   - ./pgdata:/var/lib/postgresql/data
 
     steps:
       - name: Checkout repo
