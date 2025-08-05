@@ -60,13 +60,14 @@ jobs:
           exit 1
         env:
           PGPASSWORD: mypass
+      - name: Detect Linux host IP for Docker
+        id: hostip
+        run: echo "HOST_IP=$(ip route | awk '/default/ { print $3 }')" >> $GITHUB_ENV
 
       - name: Run backup script test (verbose)
         run: |
-          # Use 'host.docker.internal' for DB_HOST.
-          # This is a special DNS name that lets the container connect to the runner host.
           docker run --rm \
-            -e DB_HOST=host.docker.internal \
+            -e DB_HOST=$HOST_IP \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
             -e DB_PASSWORD=mypass \
