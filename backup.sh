@@ -1,5 +1,7 @@
 #!/bin/bash
-set -e
+set -euxo pipefail
+echo "debugG"
+
 
 # Environment Variables
 DB_HOST=${DB_HOST:-postgres-db}

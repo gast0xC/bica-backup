@@ -29,6 +29,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        volumes:
+          - ./pgdata:/var/lib/postgresql/data
 
     steps:
       - name: Checkout repo
@@ -39,6 +41,13 @@ jobs:
 
       - name: Build backup container
         run: docker build -t $IMAGE_NAME:$TAG .
+
+      - name: Prepare pgdata and backups folders
+        run: |
+          mkdir -p ./pgdata
+          mkdir -p ./backups
+          chmod 777 ./pgdata
+          chmod 777 ./backups
 
       - name: Wait for Postgres to be ready on localhost
         run: |
@@ -52,7 +61,6 @@ jobs:
 
       - name: Run backup script test
         run: |
-          mkdir -p ./backups
           docker run --rm \
             -e DB_HOST=localhost \
             -e DB_PORT=5432 \
