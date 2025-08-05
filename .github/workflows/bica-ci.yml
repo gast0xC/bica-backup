@@ -63,11 +63,10 @@ jobs:
 
       - name: Run backup script test (verbose)
         run: |
-          # Use 'localhost' for DB_HOST when running the container
-          # Adding '--network host' makes networking simpler in this CI context
+          # Use 'host.docker.internal' for DB_HOST.
+          # This is a special DNS name that lets the container connect to the runner host.
           docker run --rm \
-            --network host \
-            -e DB_HOST=localhost \
+            -e DB_HOST=host.docker.internal \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
             -e DB_PASSWORD=mypass \
@@ -109,4 +108,3 @@ jobs:
         run: |
           docker tag $IMAGE_NAME:$TAG ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
-          
