@@ -15,21 +15,6 @@ jobs:
     name: Build & Validate Backup
     runs-on: ubuntu-latest
 
-    services:
-      postgres-db:
-        image: postgres:15
-        env:
-          POSTGRES_USER: myuser
-          POSTGRES_PASSWORD: mypass
-          POSTGRES_DB: mydatabase
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -37,13 +22,19 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backup container
-        run: docker build -t $IMAGE_NAME:$TAG .
+      - name: Create Docker network
+        run: docker network create bica-net
 
-      - name: Prepare folders
+      - name: Start PostgreSQL
         run: |
-          mkdir -p ./backups
-          chmod 777 ./backups
+          docker run -d \
+            --name postgres-db \
+            --network bica-net \
+            -e POSTGRES_USER=myuser \
+            -e POSTGRES_PASSWORD=mypass \
+            -e POSTGRES_DB=mydatabase \
+            -p 5432:5432 \
+            postgres:15
 
       - name: Wait for Postgres to be ready
         run: |
@@ -58,9 +49,18 @@ jobs:
         env:
           PGPASSWORD: mypass
 
-      - name: Run backup script test
+      - name: Build backup container
+        run: docker build -t $IMAGE_NAME:$TAG .
+
+      - name: Prepare backup folder
+        run: |
+          mkdir -p ./backups
+          chmod 777 ./backups
+
+      - name: Run backup script in container
         run: |
           docker run --rm \
+            --network bica-net \
             -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
@@ -69,14 +69,29 @@ jobs:
             -e BACKUP_DIR=/mnt/backups \
             -e RETENTION_DAYS=7 \
             -e ENCRYPT=false \
-            -v $(pwd)/backups:/mnt/backups \
+            -v ${{ github.workspace }}/backups:/mnt/backups \
             $IMAGE_NAME:$TAG /backup.sh
 
       - name: Check backup file
         run: |
           echo "Files in backup folder:"
           ls -lh ./backups
-          test -f ./backups/*.tar.gz || (echo "Backup not created!" && exit 1)
+
+          echo "Verifying .tar.gz existence..."
+          shopt -s nullglob
+          files=(./backups/*.tar.gz)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Backup not created!"
+            exit 1
+          else
+            echo "Backup found: ${files[@]}"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f postgres-db || true
+          docker network rm bica-net || true
 
   docker-publish:
     name: Push to Docker Hub
@@ -86,10 +101,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
       - name: Build image for publishing
         run: docker build -t $IMAGE_NAME:$TAG .
 
@@ -99,7 +114,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push image
+      - name: Push image to Docker Hub
         run: |
           docker tag $IMAGE_NAME:$TAG ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
