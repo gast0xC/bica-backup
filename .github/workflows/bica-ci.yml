@@ -70,53 +70,12 @@ jobs:
           echo "Postgres did not become ready in time"
           exit 1
 
+      - name: Give execute permission to setup_postgres.sh
+        run: chmod +x ./scripts/setup_postgres.sh
+
       - name: Populate database with sample data
-        run: |
-          docker run --rm --network bica-net \
-            -e PGPASSWORD=mypass \
-            postgres:15 \
-            psql -h postgres-db -U myuser -d mydatabase -c "
-              CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
+        run: ./scripts/setup_postgres.sh
 
-              CREATE TABLE IF NOT EXISTS posts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                title TEXT NOT NULL,
-                content TEXT,
-                published_at TIMESTAMP
-              );
-
-              CREATE TABLE IF NOT EXISTS comments (
-                id SERIAL PRIMARY KEY,
-                post_id INTEGER NOT NULL REFERENCES posts(id),
-                author_name TEXT NOT NULL,
-                comment TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
-
-              INSERT INTO users (username, email) VALUES
-                ('alice', 'alice@example.com'),
-                ('bob', 'bob@example.com'),
-                ('carol', 'carol@example.com')
-              ON CONFLICT DO NOTHING;
-
-              INSERT INTO posts (user_id, title, content, published_at) VALUES
-                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
-                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
-                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
-              ON CONFLICT DO NOTHING;
-
-              INSERT INTO comments (post_id, author_name, comment) VALUES
-                (1, 'Eve', 'Great post, thanks!'),
-                (1, 'Mallory', 'I disagree with your point.'),
-                (3, 'Trent', 'Nice one, Bob!')
-              ON CONFLICT DO NOTHING;
-            "
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -146,6 +105,7 @@ jobs:
         run: |
           docker rm -f postgres-db || true
           docker network rm bica-net || true
+
 
   backup-encrypted:
     name: Backup Encrypted
@@ -184,54 +144,13 @@ jobs:
           done
           echo "Postgres did not become ready in time"
           exit 1
+          
+      - name: Give execute permission to setup_postgres.sh
+        run: chmod +x ./scripts/setup_postgres.sh
 
       - name: Populate database with sample data
-        run: |
-          docker run --rm --network bica-net \
-            -e PGPASSWORD=mypass \
-            postgres:15 \
-            psql -h postgres-db -U myuser -d mydatabase -c "
-              CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
+        run: ./scripts/setup_postgres.sh
 
-              CREATE TABLE IF NOT EXISTS posts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                title TEXT NOT NULL,
-                content TEXT,
-                published_at TIMESTAMP
-              );
-
-              CREATE TABLE IF NOT EXISTS comments (
-                id SERIAL PRIMARY KEY,
-                post_id INTEGER NOT NULL REFERENCES posts(id),
-                author_name TEXT NOT NULL,
-                comment TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
-
-              INSERT INTO users (username, email) VALUES
-                ('alice', 'alice@example.com'),
-                ('bob', 'bob@example.com'),
-                ('carol', 'carol@example.com')
-              ON CONFLICT DO NOTHING;
-
-              INSERT INTO posts (user_id, title, content, published_at) VALUES
-                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
-                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
-                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
-              ON CONFLICT DO NOTHING;
-
-              INSERT INTO comments (post_id, author_name, comment) VALUES
-                (1, 'Eve', 'Great post, thanks!'),
-                (1, 'Mallory', 'I disagree with your point.'),
-                (3, 'Trent', 'Nice one, Bob!')
-              ON CONFLICT DO NOTHING;
-            "
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -266,6 +185,7 @@ jobs:
           docker rm -f postgres-db || true
           docker network rm bica-net || true
 
+
   decrypt-and-show:
     name: Decrypt backup and show pg_dump
     runs-on: ubuntu-latest
@@ -291,6 +211,7 @@ jobs:
         run: |
           tar -xzf ./backups/*.tar.gz -C ./backups
           head -40 ./backups/db_backup.sql
+
 
   docker-publish:
     name: Push to Docker Hub
