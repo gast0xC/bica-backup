@@ -58,7 +58,6 @@ jobs:
             -e POSTGRES_DB=mydatabase \
             postgres:15
 
-
       - name: Wait for Postgres to be ready (container-based)
         run: |
           for i in {1..30}; do
@@ -70,10 +69,8 @@ jobs:
           echo "Postgres did not become ready in time"
           exit 1
 
-
       - name: Populate database with sample data
         run: |
-          sleep 10
           docker run --rm --network bica-net \
             -e PGPASSWORD=mypass \
             postgres:15 \
@@ -120,7 +117,6 @@ jobs:
               ON CONFLICT DO NOTHING;
             "
 
-
       - name: Prepare backup folder
         run: mkdir -p ./backups
 
@@ -143,7 +139,7 @@ jobs:
         run: |
           ls -lh ./backups
           tar -xzf ./backups/*.tar.gz -C ./backups
-          head -20 ./backups/db_backup.sql
+          head -40 ./backups/db_backup.sql
 
       - name: Cleanup
         run: |
@@ -188,10 +184,8 @@ jobs:
           echo "Postgres did not become ready in time"
           exit 1
 
-
       - name: Populate database with sample data
         run: |
-          sleep 10
           docker run --rm --network bica-net \
             -e PGPASSWORD=mypass \
             postgres:15 \
@@ -237,8 +231,6 @@ jobs:
                 (3, 'Trent', 'Nice one, Bob!')
               ON CONFLICT DO NOTHING;
             "
-
-
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -297,7 +289,7 @@ jobs:
       - name: Extract decrypted tarball and show pg_dump head
         run: |
           tar -xzf ./backups/*.tar.gz -C ./backups
-          head -20 ./backups/db_backup.sql
+          head -40 ./backups/db_backup.sql
 
   docker-publish:
     name: Push to Docker Hub
