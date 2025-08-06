@@ -70,7 +70,13 @@ jobs:
         run: |
           docker run --rm --network bica-net postgres:15 bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser"
 
-      - name: Run backup script in container
+      - name: List files in image
+        run: |
+          docker run --rm $IMAGE_NAME:$TAG ls -lh /
+          docker run --rm $IMAGE_NAME:$TAG ls -lh /backup.sh
+
+
+      - name: Run backup script in container (verbose)
         run: |
           docker run --rm \
             --network bica-net \
@@ -83,7 +89,8 @@ jobs:
             -e RETENTION_DAYS=7 \
             -e ENCRYPT=false \
             -v ${{ github.workspace }}/backups:/mnt/backups \
-            $IMAGE_NAME:$TAG /backup.sh
+            $IMAGE_NAME:$TAG /bin/bash -c "/backup.sh"
+
 
       - name: Check backup file
         run: |
