@@ -58,14 +58,10 @@ jobs:
         env:
           PGPASSWORD: mypass
 
-      - name: Get runner host IP (to reach Postgres from container)
-        id: hostip
-        run: echo "HOST_IP=$(ip route | awk '/default/ { print $3 }')" >> $GITHUB_ENV
-
       - name: Run backup script test
         run: |
           docker run --rm \
-            -e DB_HOST=$HOST_IP \
+            -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
             -e DB_PASSWORD=mypass \
@@ -78,6 +74,7 @@ jobs:
 
       - name: Check backup file
         run: |
+          echo "Files in backup folder:"
           ls -lh ./backups
           test -f ./backups/*.tar.gz || (echo "Backup not created!" && exit 1)
 
