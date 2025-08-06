@@ -139,7 +139,7 @@ jobs:
         run: |
           ls -lh ./backups
           tar -xzf ./backups/*.tar.gz -C ./backups
-          head -40 ./backups/db_backup.sql
+          cat ./backups/db_backup.sql
 
       - name: Cleanup
         run: |
@@ -289,7 +289,8 @@ jobs:
       - name: Extract decrypted tarball and show pg_dump head
         run: |
           tar -xzf ./backups/*.tar.gz -C ./backups
-          head -40 ./backups/db_backup.sql
+          cat ./backups/db_backup.sql
+
 
   docker-publish:
     name: Push to Docker Hub
