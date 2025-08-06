@@ -194,10 +194,10 @@ jobs:
             openssl enc -aes-256-cbc -d -pbkdf2 -salt -in "$f" -out "${f%.enc}.tar.gz" -k "$ENCRYPT_PASS"
           done
 
-      - name: Extract decrypted tarball and display first 40 lines of pg_dump
+      - name: Extract decrypted tarball and display of pg_dump
         run: |
           tar -xzf ./backups/*.tar.gz -C ./backups
-          head -40 ./backups/db_backup.sql
+          cat ./backups/db_backup.sql
 
   docker-publish:
     name: Push Docker image to Docker Hub
