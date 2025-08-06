@@ -25,7 +25,7 @@ jobs:
       - name: Create Docker network
         run: docker network create bica-net
 
-      - name: Start PostgreSQL
+      - name: Start PostgreSQL container
         run: |
           docker run -d \
             --name postgres-db \
@@ -57,18 +57,16 @@ jobs:
           mkdir -p ./backups
           chmod 777 ./backups
 
+      - name: Inspect Docker network
+        run: docker network inspect bica-net
+
+      - name: DNS resolution from backup container (using dig)
+        run: |
+          docker run --rm --network bica-net instrumentisto/dnsutils dig postgres-db +short
+
       - name: Connect to postgres from another container
         run: |
-          docker run --rm \
-            --network bica-net \
-            postgres:15 \
-            bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser"
-
-      - name: DNS resolution from backup container
-        run: |
-          docker run --rm \
-            --network bica-net \
-            busybox nslookup postgres-db
+          docker run --rm --network bica-net postgres:15 bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser"
 
       - name: Run backup script in container
         run: |
