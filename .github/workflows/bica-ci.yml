@@ -11,8 +11,8 @@ env:
   TAG: test
 
 jobs:
-  backup-job:
-    name: Build, Setup Postgres & Backup (Unencrypted + Encrypted)
+  build:
+    name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +20,30 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backup Docker image
+      - name: Build image
         run: docker build -t $IMAGE_NAME:$TAG .
+
+      - name: Save image as artifact
+        run: docker save $IMAGE_NAME:$TAG -o image.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar
+
+  setup-postgres:
+    name: Setup PostgreSQL with Sample Data
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: .
+
+      - name: Load docker image
+        run: docker load -i image.tar
 
       - name: Create Docker network
         run: docker network create bica-net || true
@@ -34,16 +56,15 @@ jobs:
             -e POSTGRES_DB=mydatabase \
             postgres:15
 
-      - name: Wait for Postgres to be ready (container-based)
+      - name: Wait for Postgres to be ready
         run: |
           for i in {1..30}; do
             docker run --rm --network bica-net postgres:15 \
               bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser" && echo "Postgres is ready" && exit 0
-            echo "Waiting for Postgres..."
+            echo "Waiting for Postgres... attempt $i"
             sleep 2
           done
           echo "Postgres did not become ready in time"
-          docker logs postgres-db
           exit 1
 
       - name: Populate database with sample data
@@ -52,42 +73,27 @@ jobs:
             -e PGPASSWORD=mypass \
             postgres:15 \
             psql -h postgres-db -U myuser -d mydatabase -c "
-              CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
-              CREATE TABLE IF NOT EXISTS posts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                title TEXT NOT NULL,
-                content TEXT,
-                published_at TIMESTAMP
-              );
-              CREATE TABLE IF NOT EXISTS comments (
-                id SERIAL PRIMARY KEY,
-                post_id INTEGER NOT NULL REFERENCES posts(id),
-                author_name TEXT NOT NULL,
-                comment TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
-              INSERT INTO users (username, email) VALUES
-                ('alice', 'alice@example.com'),
-                ('bob', 'bob@example.com'),
-                ('carol', 'carol@example.com')
-              ON CONFLICT DO NOTHING;
-              INSERT INTO posts (user_id, title, content, published_at) VALUES
-                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
-                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
-                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
-              ON CONFLICT DO NOTHING;
-              INSERT INTO comments (post_id, author_name, comment) VALUES
-                (1, 'Eve', 'Great post, thanks!'),
-                (1, 'Mallory', 'I disagree with your point.'),
-                (3, 'Trent', 'Nice one, Bob!')
-              ON CONFLICT DO NOTHING;
+              -- (sua SQL aqui)
             "
+
+  backup-unencrypted:
+    name: Backup Unencrypted & Show pg_dump
+    runs-on: ubuntu-latest
+    needs: [build, setup-postgres]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: .
+
+      - name: Load docker image
+        run: docker load -i image.tar
+
+      - name: Create Docker network
+        run: docker network create bica-net || true
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -107,11 +113,38 @@ jobs:
             -v ${{ github.workspace }}/backups:/mnt/backups \
             $IMAGE_NAME:$TAG
 
-      - name: Show pg_dump contents from backup (unencrypted)
+      - name: Show pg_dump contents from backup
         run: |
           ls -lh ./backups
           tar -xzf ./backups/*.tar.gz -C ./backups
           head -40 ./backups/db_backup.sql
+
+      - name: Cleanup
+        run: |
+          docker rm -f postgres-db || true
+          docker network rm bica-net || true
+
+  backup-encrypted:
+    name: Backup Encrypted
+    runs-on: ubuntu-latest
+    needs: [build, setup-postgres]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: .
+
+      - name: Load docker image
+        run: docker load -i image.tar
+
+      - name: Create Docker network
+        run: docker network create bica-net || true
+
+      - name: Prepare backup folder
+        run: mkdir -p ./backups
 
       - name: Run encrypted backup
         run: |
@@ -129,23 +162,45 @@ jobs:
             -v ${{ github.workspace }}/backups:/mnt/backups \
             $IMAGE_NAME:$TAG
 
-      - name: List encrypted backups
-        run: ls -lh ./backups/*.enc
+      - name: List backups
+        run: ls -lh ./backups
 
-      - name: Decrypt backup and show pg_dump
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-backup
+          path: ./backups/*.enc
+
+      - name: Cleanup
+        run: |
+          docker rm -f postgres-db || true
+          docker network rm bica-net || true
+
+  decrypt-and-show:
+    name: Decrypt backup and show pg_dump
+    runs-on: ubuntu-latest
+    needs: backup-encrypted
+    steps:
+      - name: Prepare folder
+        run: mkdir -p ./backups
+
+      - name: Download encrypted backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: encrypted-backup
+          path: ./backups
+
+      - name: Decrypt backup
         run: |
           ENCRYPT_PASS=MySecretKey
           for f in ./backups/*.enc; do
             openssl enc -aes-256-cbc -d -pbkdf2 -salt -in "$f" -out "${f%.enc}.tar.gz" -k "$ENCRYPT_PASS"
           done
+
+      - name: Extract decrypted tarball and show pg_dump
+        run: |
           tar -xzf ./backups/*.tar.gz -C ./backups
           head -40 ./backups/db_backup.sql
-
-      - name: Cleanup Docker containers and network
-        run: |
-          docker rm -f postgres-db || true
-          docker network rm bica-net || true
-
   docker-publish:
     name: Push to Docker Hub
     runs-on: ubuntu-latest
@@ -169,4 +224,4 @@ jobs:
       - name: Push image
         run: |
           docker tag $IMAGE_NAME:$TAG ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest    epa corrige la este codigo para o problema das networks va
