@@ -70,10 +70,28 @@ jobs:
         run: |
           docker run --rm --network bica-net postgres:15 bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser"
 
-      - name: List files in image
+      - name: List files in image root folder ignoring entrypoint
         run: |
-          docker run --rm $IMAGE_NAME:$TAG ls -lh /
-          docker run --rm $IMAGE_NAME:$TAG ls -lh /backup.sh
+          docker run --rm --entrypoint ls $IMAGE_NAME:$TAG -lh /
+
+      - name: Check backup.sh file ignoring entrypoint
+        run: |
+          docker run --rm --entrypoint ls $IMAGE_NAME:$TAG -lh /backup.sh
+
+      - name: Run backup.sh script ignoring entrypoint
+        run: |
+          docker run --rm --entrypoint /backup.sh \
+            --network bica-net \
+            -e DB_HOST=postgres-db \
+            -e DB_PORT=5432 \
+            -e DB_USER=myuser \
+            -e DB_PASSWORD=mypass \
+            -e DB_NAME=mydatabase \
+            -e BACKUP_DIR=/mnt/backups \
+            -e RETENTION_DAYS=7 \
+            -e ENCRYPT=false \
+            -v ${{ github.workspace }}/backups:/mnt/backups \
+            $IMAGE_NAME:$TAG
 
 
       - name: Run backup script in container (verbose)
