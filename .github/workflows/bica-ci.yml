@@ -60,9 +60,11 @@ jobs:
       - name: Inspect Docker network
         run: docker network inspect bica-net
 
-      - name: DNS resolution from backup container (using dig)
+      - name: DNS resolution from backup container (using netshoot)
         run: |
-          docker run --rm --network bica-net instrumentisto/dnsutils dig postgres-db +short
+          docker run --rm --network bica-net nicolaka/netshoot dig postgres-db +short
+
+
 
       - name: Connect to postgres from another container
         run: |
