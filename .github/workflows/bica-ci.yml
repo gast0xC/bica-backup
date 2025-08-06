@@ -65,12 +65,48 @@ jobs:
             -e PGPASSWORD=mypass \
             postgres:15 \
             psql -h postgres-db -U myuser -d mydatabase -c "
-              CREATE TABLE IF NOT EXISTS test (
+              CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL
+                username TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT NOW()
               );
-              INSERT INTO test (name) VALUES ('Hello'), ('World');
+
+              CREATE TABLE IF NOT EXISTS posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                title TEXT NOT NULL,
+                content TEXT,
+                published_at TIMESTAMP
+              );
+
+              CREATE TABLE IF NOT EXISTS comments (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER NOT NULL REFERENCES posts(id),
+                author_name TEXT NOT NULL,
+                comment TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+              );
+
+              INSERT INTO users (username, email) VALUES
+                ('alice', 'alice@example.com'),
+                ('bob', 'bob@example.com'),
+                ('carol', 'carol@example.com')
+              ON CONFLICT DO NOTHING;
+
+              INSERT INTO posts (user_id, title, content, published_at) VALUES
+                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
+                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
+                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
+              ON CONFLICT DO NOTHING;
+
+              INSERT INTO comments (post_id, author_name, comment) VALUES
+                (1, 'Eve', 'Great post, thanks!'),
+                (1, 'Mallory', 'I disagree with your point.'),
+                (3, 'Trent', 'Nice one, Bob!')
+              ON CONFLICT DO NOTHING;
             "
+
 
       - name: Wait for Postgres to be ready (container-based)
         run: |
@@ -146,12 +182,48 @@ jobs:
             -e PGPASSWORD=mypass \
             postgres:15 \
             psql -h postgres-db -U myuser -d mydatabase -c "
-              CREATE TABLE IF NOT EXISTS test (
+              CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL
+                username TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT NOW()
               );
-              INSERT INTO test (name) VALUES ('Hello'), ('World');
+
+              CREATE TABLE IF NOT EXISTS posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                title TEXT NOT NULL,
+                content TEXT,
+                published_at TIMESTAMP
+              );
+
+              CREATE TABLE IF NOT EXISTS comments (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER NOT NULL REFERENCES posts(id),
+                author_name TEXT NOT NULL,
+                comment TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+              );
+
+              INSERT INTO users (username, email) VALUES
+                ('alice', 'alice@example.com'),
+                ('bob', 'bob@example.com'),
+                ('carol', 'carol@example.com')
+              ON CONFLICT DO NOTHING;
+
+              INSERT INTO posts (user_id, title, content, published_at) VALUES
+                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
+                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
+                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
+              ON CONFLICT DO NOTHING;
+
+              INSERT INTO comments (post_id, author_name, comment) VALUES
+                (1, 'Eve', 'Great post, thanks!'),
+                (1, 'Mallory', 'I disagree with your point.'),
+                (3, 'Trent', 'Nice one, Bob!')
+              ON CONFLICT DO NOTHING;
             "
+
 
       - name: Wait for Postgres to be ready (container-based)
         run: |
