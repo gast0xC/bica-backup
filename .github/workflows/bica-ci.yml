@@ -31,62 +31,6 @@ jobs:
           name: docker-image
           path: image.tar
 
-
-  backup-unencrypted:
-    name: Backup Unencrypted & Show pg_dump
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-          path: .
-
-      - name: Load docker image
-        run: docker load -i image.tar
-
-      - name: Create Docker network
-        run: docker network create bica-net-unenc || true
-
-      - name: Give execute permission to setup_postgres.sh
-        run: chmod +x ./scripts/setup_postgres.sh
-
-      - name: Populate database with sample data
-        run: ./scripts/setup_postgres.sh bica-net-unenc postgres-db-unenc
-
-      - name: Prepare backup folder
-        run: mkdir -p ./backups
-
-      - name: Run unencrypted backup
-        run: |
-          docker run --rm --network bica-net-unenc \
-            --entrypoint /backup.sh \
-            -e DB_HOST=postgres-db-unenc \
-            -e DB_PORT=5432 \
-            -e DB_USER=myuser \
-            -e DB_PASSWORD=mypass \
-            -e DB_NAME=mydatabase \
-            -e BACKUP_DIR=/mnt/backups \
-            -e RETENTION_DAYS=7 \
-            -e ENCRYPT=false \
-            -v ${{ github.workspace }}/backups:/mnt/backups \
-            $IMAGE_NAME:$TAG
-
-      - name: Show pg_dump contents from backup
-        run: |
-          ls -lh ./backups
-          tar -xzf ./backups/*.tar.gz -C ./backups
-          head -40 ./backups/db_backup.sql
-
-      - name: Cleanup
-        run: |
-          docker rm -f postgres-db-unenc || true
-          docker network rm bica-net-unenc || true
-
-
   backup-encrypted:
     name: Backup Encrypted
     runs-on: ubuntu-latest
@@ -104,22 +48,83 @@ jobs:
         run: docker load -i image.tar
 
       - name: Create Docker network
-        run: docker network create bica-net-enc || true
+        run: docker network create bica-net || true
 
-      - name: Give execute permission to setup_postgres.sh
-        run: chmod +x ./scripts/setup_postgres.sh
+      - name: Start PostgreSQL container
+        run: |
+          docker run -d --name postgres-db --network bica-net \
+            -e POSTGRES_USER=myuser \
+            -e POSTGRES_PASSWORD=mypass \
+            -e POSTGRES_DB=mydatabase \
+            postgres:15
+
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            docker run --rm --network bica-net postgres:15 \
+              bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser" && echo "Postgres is ready" && exit 0
+            echo "Waiting for Postgres... attempt $i"
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
 
       - name: Populate database with sample data
-        run: ./scripts/setup_postgres.sh bica-net-enc postgres-db-enc
+        run: |
+          docker run --rm --network bica-net \
+            -e PGPASSWORD=mypass \
+            postgres:15 \
+            psql -h postgres-db -U myuser -d mydatabase -c "
+              CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT NOW()
+              );
+
+              CREATE TABLE IF NOT EXISTS posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                title TEXT NOT NULL,
+                content TEXT,
+                published_at TIMESTAMP
+              );
+
+              CREATE TABLE IF NOT EXISTS comments (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER NOT NULL REFERENCES posts(id),
+                author_name TEXT NOT NULL,
+                comment TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+              );
+
+              INSERT INTO users (username, email) VALUES
+                ('alice', 'alice@example.com'),
+                ('bob', 'bob@example.com'),
+                ('carol', 'carol@example.com')
+              ON CONFLICT DO NOTHING;
+
+              INSERT INTO posts (user_id, title, content, published_at) VALUES
+                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
+                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
+                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
+              ON CONFLICT DO NOTHING;
+
+              INSERT INTO comments (post_id, author_name, comment) VALUES
+                (1, 'Eve', 'Great post, thanks!'),
+                (1, 'Mallory', 'I disagree with your point.'),
+                (3, 'Trent', 'Nice one, Bob!')
+              ON CONFLICT DO NOTHING;
+            "
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
 
       - name: Run encrypted backup
         run: |
-          docker run --rm --network bica-net-enc \
+          docker run --rm --network bica-net \
             --entrypoint /backup.sh \
-            -e DB_HOST=postgres-db-enc \
+            -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
             -e DB_PASSWORD=mypass \
@@ -142,9 +147,8 @@ jobs:
 
       - name: Cleanup
         run: |
-          docker rm -f postgres-db-enc || true
-          docker network rm bica-net-enc || true
-
+          docker rm -f postgres-db || true
+          docker network rm bica-net || true
 
   decrypt-and-show:
     name: Decrypt backup and show pg_dump
@@ -172,11 +176,10 @@ jobs:
           tar -xzf ./backups/*.tar.gz -C ./backups
           head -40 ./backups/db_backup.sql
 
-
   docker-publish:
     name: Push to Docker Hub
     runs-on: ubuntu-latest
-    needs: [decrypt-and-show, backup-unencrypted]
+    needs: [decrypt-and-show]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
