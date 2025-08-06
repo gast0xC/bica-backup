@@ -57,69 +57,70 @@ jobs:
 
       - name: Wait for Postgres to be ready
         run: |
-          for i in {1..30}; do
-            docker run --rm --network bica-net ${{ env.POSTGRES_IMAGE }} \
-              bash -c "PGPASSWORD=$DB_PASSWORD pg_isready -h postgres-db -p 5432 -U $DB_USER" && exit 0
-            echo "Waiting for Postgres..."
+          for i in $(seq 1 30); do
+            docker exec postgres-db pg_isready -U $DB_USER -d $DB_NAME && exit 0
+            echo "Waiting for Postgres... attempt $i"
             sleep 2
           done
-          echo "Postgres did not become ready in time"
+          echo "Postgres did not become ready in time, showing logs:"
+          docker logs postgres-db
           exit 1
 
       - name: Populate database with sample data
         run: |
-          docker run --rm --network bica-net \
-            -e PGPASSWORD=$DB_PASSWORD \
-            ${{ env.POSTGRES_IMAGE }} \
-            psql -h postgres-db -U $DB_USER -d $DB_NAME -c "
-              CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
+          docker exec -i postgres-db psql -U $DB_USER -d $DB_NAME <<EOF
+            CREATE TABLE IF NOT EXISTS users (
+              id SERIAL PRIMARY KEY,
+              username TEXT NOT NULL UNIQUE,
+              email TEXT NOT NULL UNIQUE,
+              created_at TIMESTAMP DEFAULT NOW()
+            );
 
-              CREATE TABLE IF NOT EXISTS posts (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                title TEXT NOT NULL,
-                content TEXT,
-                published_at TIMESTAMP
-              );
+            CREATE TABLE IF NOT EXISTS posts (
+              id SERIAL PRIMARY KEY,
+              user_id INTEGER NOT NULL REFERENCES users(id),
+              title TEXT NOT NULL,
+              content TEXT,
+              published_at TIMESTAMP
+            );
 
-              CREATE TABLE IF NOT EXISTS comments (
-                id SERIAL PRIMARY KEY,
-                post_id INTEGER NOT NULL REFERENCES posts(id),
-                author_name TEXT NOT NULL,
-                comment TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
-              );
+            CREATE TABLE IF NOT EXISTS comments (
+              id SERIAL PRIMARY KEY,
+              post_id INTEGER NOT NULL REFERENCES posts(id),
+              author_name TEXT NOT NULL,
+              comment TEXT NOT NULL,
+              created_at TIMESTAMP DEFAULT NOW()
+            );
 
-              INSERT INTO users (username, email) VALUES
-                ('alice', 'alice@example.com'),
-                ('bob', 'bob@example.com'),
-                ('carol', 'carol@example.com')
-              ON CONFLICT DO NOTHING;
+            INSERT INTO users (username, email) VALUES
+              ('alice', 'alice@example.com'),
+              ('bob', 'bob@example.com'),
+              ('carol', 'carol@example.com')
+            ON CONFLICT DO NOTHING;
 
-              INSERT INTO posts (user_id, title, content, published_at) VALUES
-                (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
-                (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
-                (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
-              ON CONFLICT DO NOTHING;
+            INSERT INTO posts (user_id, title, content, published_at) VALUES
+              (1, 'First post', 'This is the content of the first post.', NOW() - INTERVAL '5 days'),
+              (1, 'Second post', 'More content here.', NOW() - INTERVAL '2 days'),
+              (2, 'Bob''s post', 'Bob writes something interesting.', NOW() - INTERVAL '3 days')
+            ON CONFLICT DO NOTHING;
 
-              INSERT INTO comments (post_id, author_name, comment) VALUES
-                (1, 'Eve', 'Great post, thanks!'),
-                (1, 'Mallory', 'I disagree with your point.'),
-                (3, 'Trent', 'Nice one, Bob!')
-              ON CONFLICT DO NOTHING;
-            "
+            INSERT INTO comments (post_id, author_name, comment) VALUES
+              (1, 'Eve', 'Great post, thanks!'),
+              (1, 'Mallory', 'I disagree with your point.'),
+              (3, 'Trent', 'Nice one, Bob!')
+            ON CONFLICT DO NOTHING;
+EOF
 
   backup-unencrypted:
     name: Backup Unencrypted & Show pg_dump
     runs-on: ubuntu-latest
     needs: [build, setup-postgres]
     env:
+      DB_USER: ${{ env.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ env.DB_NAME }}
+      BACKUP_DIR: ${{ env.BACKUP_DIR }}
+      RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
     steps:
       - uses: actions/checkout@v4
 
@@ -150,13 +151,13 @@ jobs:
             -v ${{ github.workspace }}/backups:$BACKUP_DIR \
             $IMAGE_NAME:$TAG
 
-      - name: Show pg_dump contents from backup 
+      - name: Show pg_dump first 40 lines
         run: |
           ls -lh ./backups
           tar -xzf ./backups/*.tar.gz -C ./backups
-          cat ./backups/db_backup.sql
+          head -40 ./backups/db_backup.sql
 
-      - name: Cleanup
+      - name: Cleanup Docker containers and network
         run: |
           docker rm -f postgres-db || true
           docker network rm bica-net || true
@@ -166,7 +167,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, setup-postgres]
     env:
+      DB_USER: ${{ env.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ env.DB_NAME }}
+      BACKUP_DIR: ${{ env.BACKUP_DIR }}
+      RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
       ENCRYPT_PASS: ${{ secrets.ENCRYPT_PASS }}
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +213,7 @@ jobs:
           name: encrypted-backup
           path: ./backups/*.enc
 
-      - name: Cleanup
+      - name: Cleanup Docker containers and network
         run: |
           docker rm -f postgres-db || true
           docker network rm bica-net || true
@@ -235,16 +240,19 @@ jobs:
             openssl enc -aes-256-cbc -d -pbkdf2 -salt -in "$f" -out "${f%.enc}.tar.gz" -k "$ENCRYPT_PASS"
           done
 
-      - name: Extract decrypted tarball and show pg_dump 
+      - name: Extract decrypted tarball and show pg_dump
         run: |
           tar -xzf ./backups/*.tar.gz -C ./backups
-          cat ./backups/db_backup.sql
+          head -40 ./backups/db_backup.sql
 
   docker-publish:
     name: Push to Docker Hub
     runs-on: ubuntu-latest
     needs: [decrypt-and-show, backup-unencrypted]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      IMAGE_NAME: ${{ env.IMAGE_NAME }}
+      TAG: ${{ env.TAG }}
     steps:
       - uses: actions/checkout@v4
 
