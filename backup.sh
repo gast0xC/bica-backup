@@ -1,12 +1,4 @@
 #!/bin/bash
-#set -euxo pipefail
-echo "debugG"
-echo "[DEBUG] Host: $DB_HOST"
-echo "[DEBUG] Port: $DB_PORT"
-echo "[DEBUG] User: $DB_USER"
-echo "[DEBUG] DB Name: $DB_NAME"
-echo "[DEBUG] Backup Dir: $BACKUP_DIR"
-
 
 # Environment Variables
 DB_HOST=${DB_HOST:-postgres-db}
