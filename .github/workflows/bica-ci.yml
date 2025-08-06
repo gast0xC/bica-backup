@@ -57,6 +57,19 @@ jobs:
           mkdir -p ./backups
           chmod 777 ./backups
 
+      - name: Connect to postgres from another container
+        run: |
+          docker run --rm \
+            --network bica-net \
+            postgres:15 \
+            bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser"
+
+      - name: DNS resolution from backup container
+        run: |
+          docker run --rm \
+            --network bica-net \
+            busybox nslookup postgres-db
+
       - name: Run backup script in container
         run: |
           docker run --rm \
