@@ -76,6 +76,7 @@ jobs:
       - name: Run unencrypted backup
         run: |
           docker run --rm --network bica-net \
+            --entrypoint /backup.sh \
             -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
@@ -85,7 +86,7 @@ jobs:
             -e RETENTION_DAYS=7 \
             -e ENCRYPT=false \
             -v ${{ github.workspace }}/backups:/mnt/backups \
-            $IMAGE_NAME:$TAG /backup.sh
+            $IMAGE_NAME:$TAG
 
       - name: Show pg_dump contents from backup
         run: |
@@ -143,6 +144,7 @@ jobs:
       - name: Run encrypted backup
         run: |
           docker run --rm --network bica-net \
+            --entrypoint /backup.sh \
             -e DB_HOST=postgres-db \
             -e DB_PORT=5432 \
             -e DB_USER=myuser \
@@ -153,7 +155,8 @@ jobs:
             -e ENCRYPT=true \
             -e ENCRYPT_PASS=MySecretKey \
             -v ${{ github.workspace }}/backups:/mnt/backups \
-            $IMAGE_NAME:$TAG /backup.sh
+            $IMAGE_NAME:$TAG
+
 
       - name: List backups
         run: ls -lh ./backups
