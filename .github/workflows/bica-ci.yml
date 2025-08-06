@@ -58,16 +58,17 @@ jobs:
             -e POSTGRES_DB=mydatabase \
             postgres:15
 
-      - name: Wait for Postgres
+      - name: Wait for Postgres to be ready (container-based)
         run: |
-          sudo apt-get update && sudo apt-get install -y postgresql-client
           for i in {1..30}; do
-            pg_isready -h postgres-db -p 5432 -U myuser && exit 0
+            docker run --rm --network bica-net postgres:15 \
+              bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser" && echo "Postgres is ready" && exit 0
+            echo "Waiting for Postgres..."
             sleep 2
           done
+          echo "Postgres did not become ready in time"
           exit 1
-        env:
-          PGPASSWORD: mypass
+
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -124,16 +125,17 @@ jobs:
             -e POSTGRES_DB=mydatabase \
             postgres:15
 
-      - name: Wait for Postgres
+      - name: Wait for Postgres to be ready (container-based)
         run: |
-          sudo apt-get update && sudo apt-get install -y postgresql-client
           for i in {1..30}; do
-            pg_isready -h postgres-db -p 5432 -U myuser && exit 0
+            docker run --rm --network bica-net postgres:15 \
+              bash -c "PGPASSWORD=mypass pg_isready -h postgres-db -p 5432 -U myuser" && echo "Postgres is ready" && exit 0
+            echo "Waiting for Postgres..."
             sleep 2
           done
+          echo "Postgres did not become ready in time"
           exit 1
-        env:
-          PGPASSWORD: mypass
+
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
