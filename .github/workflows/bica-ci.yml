@@ -58,6 +58,20 @@ jobs:
             -e POSTGRES_DB=mydatabase \
             postgres:15
 
+      - name: Populate database with sample data
+        run: |
+          sleep 10
+          docker run --rm --network bica-net \
+            -e PGPASSWORD=mypass \
+            postgres:15 \
+            psql -h postgres-db -U myuser -d mydatabase -c "
+              CREATE TABLE IF NOT EXISTS test (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL
+              );
+              INSERT INTO test (name) VALUES ('Hello'), ('World');
+            "
+
       - name: Wait for Postgres to be ready (container-based)
         run: |
           for i in {1..30}; do
@@ -68,7 +82,6 @@ jobs:
           done
           echo "Postgres did not become ready in time"
           exit 1
-
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -126,6 +139,20 @@ jobs:
             -e POSTGRES_DB=mydatabase \
             postgres:15
 
+      - name: Populate database with sample data
+        run: |
+          sleep 10
+          docker run --rm --network bica-net \
+            -e PGPASSWORD=mypass \
+            postgres:15 \
+            psql -h postgres-db -U myuser -d mydatabase -c "
+              CREATE TABLE IF NOT EXISTS test (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL
+              );
+              INSERT INTO test (name) VALUES ('Hello'), ('World');
+            "
+
       - name: Wait for Postgres to be ready (container-based)
         run: |
           for i in {1..30}; do
@@ -136,7 +163,6 @@ jobs:
           done
           echo "Postgres did not become ready in time"
           exit 1
-
 
       - name: Prepare backup folder
         run: mkdir -p ./backups
@@ -156,7 +182,6 @@ jobs:
             -e ENCRYPT_PASS=MySecretKey \
             -v ${{ github.workspace }}/backups:/mnt/backups \
             $IMAGE_NAME:$TAG
-
 
       - name: List backups
         run: ls -lh ./backups
