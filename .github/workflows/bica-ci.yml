@@ -196,7 +196,7 @@ jobs:
   docker-publish:
     name: Push to Docker Hub
     runs-on: ubuntu-latest
-    needs: [backup-unencrypted, backup-encrypted]
+    needs: [decrypt-and-show, backup-unencrypted]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
