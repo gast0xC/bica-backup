@@ -443,5 +443,4 @@ All cron job outputs (`stdout` and `stderr`) are appended to this file.
     -   Ensures that cron jobs continue to run on schedule
     -   Foreground mode (`-f`) ensures the container keeps running and supervises the cron jobs.
 ---
-
-*teste*
+#teste amaral
