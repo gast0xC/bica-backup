@@ -18,8 +18,9 @@ Run entirely in a Docker container, ensuring it can **restart and continue backu
 
 ---
 
-## File Structure
 
+## File Structure
+```bash
 .
 ├── backup.sh # Main backup script
 ├── crontab.txt # Scheduled tasks (cron)
@@ -29,7 +30,7 @@ Run entirely in a Docker container, ensuring it can **restart and continue backu
 ├── README.md # Official documentation
 ├── backups/ # Folder where backups are stored
 └── pgdata/  # Folder where pgdata is stored
-
+```
 
 ---
 
